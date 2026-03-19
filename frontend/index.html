@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DDR Report Generator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+:root{
+  --bg:#0d0f0e;--surface:#141716;--surface2:#1c1f1d;--border:#2a2e2c;
+  --accent:#b8f5a0;--accent2:#5dde98;--text:#e8ede9;--muted:#6b756d;
+  --danger:#ff6b6b;--warn:#ffd166;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(184,245,160,.03) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(184,245,160,.03) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0}
+.container{max-width:960px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+
+header{padding:48px 0 32px;border-bottom:1px solid var(--border);margin-bottom:40px}
+.header-tag{font-size:10px;letter-spacing:.2em;color:var(--accent);text-transform:uppercase;margin-bottom:12px}
+h1{font-family:'DM Serif Display',serif;font-size:clamp(28px,5vw,48px);line-height:1.1;font-weight:400}
+h1 em{color:var(--accent);font-style:italic}
+.subtitle{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.6}
+.badge{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;background:rgba(93,222,152,.1);
+  border:1px solid rgba(93,222,152,.3);color:var(--accent2);padding:4px 12px;border-radius:100px}
+
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:600px){.upload-grid{grid-template-columns:1fr}}
+.upload-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:24px;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+.upload-card:hover{border-color:var(--accent);background:var(--surface2)}
+.upload-card.has-file{border-color:var(--accent2)}
+.upload-card input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{width:36px;height:36px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:16px}
+.upload-card.has-file .upload-icon{background:rgba(93,222,152,.1);border-color:var(--accent2)}
+.upload-label{font-family:'Syne',sans-serif;font-size:13px;font-weight:600;
+  margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase}
+.upload-hint{font-size:11px;color:var(--muted)}
+.upload-filename{font-size:11px;color:var(--accent2);margin-top:8px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.generate-btn{width:100%;padding:16px 32px;background:var(--accent);color:#0d0f0e;border:none;
+  border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:opacity .2s;
+  display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px}
+.generate-btn:hover{opacity:.9}
+.generate-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.progress{display:none;margin-bottom:24px}
+.progress.visible{display:flex}
+.step{flex:1;padding:10px 8px;font-size:10px;color:var(--muted);
+  border-bottom:2px solid var(--border);text-align:center;transition:all .3s}
+.step.active{color:var(--accent);border-bottom-color:var(--accent)}
+.step.done{color:var(--accent2);border-bottom-color:var(--accent2)}
+
+.status-bar{display:none;background:var(--surface);border:1px solid var(--border);
+  border-left:3px solid var(--accent);border-radius:8px;padding:14px 18px;
+  margin-bottom:24px;font-size:12px;color:var(--muted);align-items:center;gap:12px}
+.status-bar.visible{display:flex}
+.status-bar.error{border-left-color:var(--danger)}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+#report-output{display:none}
+#report-output.visible{display:block}
+.report-header{background:var(--surface);border:1px solid var(--border);
+  border-radius:12px 12px 0 0;padding:32px;border-bottom:none}
+.report-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--accent);
+  background:rgba(184,245,160,.08);border:1px solid rgba(184,245,160,.2);
+  padding:4px 10px;border-radius:100px;margin-bottom:16px}
+.report-title{font-family:'DM Serif Display',serif;font-size:28px;font-weight:400;margin-bottom:8px}
+.report-meta{font-size:11px;color:var(--muted);display:flex;gap:20px;flex-wrap:wrap}
+.report-body{background:var(--surface);border:1px solid var(--border);
+  border-radius:0 0 12px 12px;padding:32px}
+
+.section{margin-bottom:40px;padding-bottom:40px;border-bottom:1px solid var(--border);
+  animation:fadeUp .35s ease both}
+.section:last-child{border-bottom:none;margin-bottom:0}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.section-num{font-size:10px;letter-spacing:.15em;color:var(--accent);text-transform:uppercase;margin-bottom:6px}
+.section-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;letter-spacing:.04em;margin-bottom:16px}
+.section-content{font-size:13px;line-height:1.8;color:#c8d4ca}
+.section-content p{margin-bottom:10px}
+.section-content ol{padding-left:20px;margin-bottom:10px}
+.section-content li{margin-bottom:6px}
+.section-content strong{color:var(--text);font-weight:500}
+
+.sev-high{color:var(--danger);font-weight:600}
+.sev-medium{color:var(--warn);font-weight:600}
+.sev-low{color:var(--accent2);font-weight:600}
+.na-tag{display:inline-block;font-size:10px;background:var(--surface2);
+  border:1px solid var(--border);padding:2px 8px;border-radius:4px;color:var(--muted)}
+
+.conflict-box{background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.2);
+  border-radius:8px;padding:16px 20px;margin-bottom:32px}
+
+table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}
+th{text-align:left;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);
+  font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td{padding:10px 12px;border:1px solid var(--border);line-height:1.6;color:#c8d4ca}
+tr:hover td{background:var(--surface2)}
+
+.section-images{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.img-card{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.img-card img{width:100%;display:block;cursor:zoom-in}
+.img-caption{padding:8px 10px;font-size:10px;color:var(--muted);background:var(--surface2)}
+.img-na{padding:24px;text-align:center;font-size:11px;color:var(--muted);background:var(--surface2)}
+
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);
+  z-index:1000;align-items:center;justify-content:center;cursor:zoom-out}
+.lightbox.open{display:flex}
+.lightbox img{max-width:90vw;max-height:90vh;border-radius:8px}
+
+.actions{display:flex;gap:12px;margin-top:28px;margin-bottom:64px;flex-wrap:wrap}
+.btn-outline{flex:1;padding:12px;background:transparent;border:1px solid var(--border);
+  color:var(--text);border-radius:8px;font-family:'Syne',sans-serif;font-size:12px;
+  font-weight:600;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
+  transition:border-color .2s,background .2s;text-decoration:none;
+  display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-outline:hover{border-color:var(--accent);background:rgba(184,245,160,.05)}
+.btn-outline.primary{border-color:var(--accent);color:var(--accent)}
+.disclaimer{font-size:11px;color:var(--muted);padding-top:20px;
+  border-top:1px solid var(--border);line-height:1.6;margin-top:20px}
+
+@media print{
+  body{background:white;color:black}
+  body::before,header .subtitle,.upload-grid,.generate-btn,.status-bar,.actions,.progress,.lightbox,.badge{display:none!important}
+  .report-header,.report-body{border:none;background:white;padding:0}
+  .report-title{font-size:22px;color:#1a1a1a}
+  .section{break-inside:avoid;border-bottom:1px solid #ddd}
+  .section-content{color:#333;font-size:12px}
+  .sev-high{color:#cc0000}.sev-medium{color:#cc6600}.sev-low{color:#007700}
+  th{background:#f0f0f0;color:#333}td{color:#333}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="header-tag">⬡ AI-Powered Pipeline</div>
+    <h1>DDR Report <em>Generator</em></h1>
+    <p class="subtitle">Upload inspection &amp; thermal documents → AI extracts, cross-references, and generates a structured Detailed Diagnostic Report.</p>
+    <div class="badge">⚡ Powered by Llama 3 · Free · No API key needed by user</div>
+  </header>
+
+  <div class="upload-grid">
+    <div class="upload-card" id="card-inspection">
+      <input type="file" id="file-inspection" accept=".pdf,.jpg,.jpeg,.png" onchange="handleFile('inspection',this)">
+      <div class="upload-icon">📋</div>
+      <div class="upload-label">Inspection Report</div>
+      <div class="upload-hint">PDF or image · max 20MB</div>
+      <div class="upload-filename" id="name-inspection"></div>
+    </div>
+    <div class="upload-card" id="card-thermal">
+      <input type="file" id="file-thermal" accept=".pdf,.jpg,.jpeg,.png" onchange="handleFile('thermal',this)">
+      <div class="upload-icon">🌡️</div>
+      <div class="upload-label">Thermal Report</div>
+      <div class="upload-hint">PDF or image · max 20MB</div>
+      <div class="upload-filename" id="name-thermal"></div>
+    </div>
+  </div>
+
+  <button class="generate-btn" id="gen-btn" onclick="generateReport()">
+    <span id="btn-icon">⚡</span>
+    <span id="btn-text">Generate DDR Report</span>
+  </button>
+
+  <div class="progress" id="progress">
+    <div class="step" id="s1">1 · Extracting</div>
+    <div class="step" id="s2">2 · Cross-referencing</div>
+    <div class="step" id="s3">3 · AI Analysis</div>
+    <div class="step" id="s4">4 · Rendering</div>
+  </div>
+
+  <div class="status-bar" id="status-bar">
+    <div class="spinner" id="spinner"></div>
+    <span id="status-msg">Processing...</span>
+  </div>
+
+  <div id="report-output">
+    <div class="report-header">
+      <div class="report-badge">✓ AI-Generated DDR Report</div>
+      <div class="report-title" id="rep-title">Detailed Diagnostic Report</div>
+      <div class="report-meta" id="rep-meta"></div>
+    </div>
+    <div class="report-body" id="rep-body"></div>
+  </div>
+
+  <div class="actions" id="report-actions" style="display:none">
+    <a class="btn-outline primary" id="pdf-btn" href="#" onclick="downloadPDF(event)" style="display:none">⬇ Download PDF</a>
+    <button class="btn-outline" onclick="window.print()">🖨 Print</button>
+    <button class="btn-outline" onclick="copyText()">📋 Copy Text</button>
+    <button class="btn-outline" onclick="resetApp()">↺ New Report</button>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lb-img" src="" alt="">
+</div>
+
+<script>
+const API = window.location.origin;
+const files = {inspection:null, thermal:null};
+let currentReportId = null;
+let pdfAvailable = false;
+
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    pdfAvailable = d.pdf_available;
+  } catch(e) {}
+}
+checkHealth();
+
+function handleFile(type, input) {
+  const f = input.files[0];
+  if (!f) return;
+  files[type] = f;
+  document.getElementById(`name-${type}`).textContent = `${f.name} (${(f.size/1024/1024).toFixed(1)}MB)`;
+  document.getElementById(`card-${type}`).classList.add('has-file');
+}
+
+function setStatus(msg, isError=false) {
+  const bar = document.getElementById('status-bar');
+  bar.className = 'status-bar visible'+(isError?' error':'');
+  document.getElementById('status-msg').textContent = msg;
+  document.getElementById('spinner').style.display = isError?'none':'block';
+}
+
+function setStep(n) {
+  ['s1','s2','s3','s4'].forEach((id,i)=>{
+    document.getElementById(id).className='step'+(i+1<n?' done':i+1===n?' active':'');
+  });
+}
+
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+async function generateReport() {
+  if (!files.inspection && !files.thermal) {
+    setStatus('Please upload at least one document.', true);
+    return;
+  }
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  document.getElementById('btn-text').textContent = 'Generating...';
+  document.getElementById('btn-icon').textContent = '⏳';
+  document.getElementById('progress').classList.add('visible');
+  currentReportId = null;
+
+  try {
+    const form = new FormData();
+    if (files.inspection) form.append('inspection_file', files.inspection);
+    if (files.thermal)    form.append('thermal_file', files.thermal);
+
+    setStep(1); setStatus('Extracting text and images from documents...');
+    await sleep(300);
+    setStep(2); setStatus('Cross-referencing areas between both reports...');
+    await sleep(300);
+    setStep(3); setStatus('AI is analysing and generating the report...');
+
+    const resp = await fetch(`${API}/generate-report`, {method:'POST', body:form});
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({detail:resp.statusText}));
+      throw new Error(err.detail || `Error ${resp.status}`);
+    }
+
+    setStep(4); setStatus('Rendering report...');
+    const report = await resp.json();
+    currentReportId = report.report_id;
+    renderReport(report);
+
+    document.getElementById('status-bar').className = 'status-bar';
+    document.getElementById('progress').classList.remove('visible');
+    btn.disabled = false;
+    document.getElementById('btn-text').textContent = 'Regenerate';
+    document.getElementById('btn-icon').textContent = '⚡';
+  } catch(e) {
+    setStatus(`Error: ${e.message}`, true);
+    document.getElementById('progress').classList.remove('visible');
+    btn.disabled = false;
+    document.getElementById('btn-text').textContent = 'Generate DDR Report';
+    document.getElementById('btn-icon').textContent = '⚡';
+  }
+}
+
+function renderReport(report) {
+  const prop = report.propertyName && report.propertyName !== 'Not Available'
+    ? ` — ${report.propertyName}` : '';
+  document.getElementById('rep-title').textContent = `Detailed Diagnostic Report${prop}`;
+  document.getElementById('rep-meta').innerHTML =
+    `<span>Date: ${esc(report.reportDate||'—')}</span>
+     <span>Inspector: ${esc(report.inspectorName||'Not Available')}</span>
+     <span>AI-Generated · Verify before action</span>`;
+
+  const body = document.getElementById('rep-body');
+  body.innerHTML = '';
+
+  (report.sections||[]).forEach((sec,i)=>{
+    const div = document.createElement('div');
+    div.className = 'section';
+    div.style.animationDelay = `${i*0.06}s`;
+
+    let imgs = '';
+    if (sec.images && sec.images.length) {
+      imgs = '<div class="section-images">';
+      sec.images.forEach(img=>{
+        if (img.base64)
+          imgs += `<figure class="img-card"><img src="data:${img.media_type};base64,${img.base64}" alt="${esc(img.caption)}" onclick="openLightbox(this.src)"><figcaption class="img-caption">${esc(img.caption)}</figcaption></figure>`;
+        else
+          imgs += `<div class="img-card"><div class="img-na">Image Not Available<br><small>${esc(img.caption)}</small></div></div>`;
+      });
+      imgs += '</div>';
+    }
+
+    div.innerHTML = `
+      <div class="section-num">Section ${esc(sec.number)}</div>
+      <div class="section-title">${esc(sec.title)}</div>
+      <div class="section-content">${fmt(sec.content, sec.id)}</div>
+      ${imgs}`;
+    body.appendChild(div);
+  });
+
+  const cf = report.conflicts;
+  if (cf && cf !== 'None identified') {
+    const d = document.createElement('div');
+    d.className = 'conflict-box';
+    d.innerHTML = `<div class="section-num">⚠ Conflicts</div>
+      <div class="section-title">Data Conflicts Between Reports</div>
+      <div class="section-content"><p>${esc(cf)}</p></div>`;
+    body.appendChild(d);
+  }
+
+  const disc = document.createElement('p');
+  disc.className = 'disclaimer';
+  disc.textContent = report.disclaimer || '';
+  body.appendChild(disc);
+
+  document.getElementById('report-output').classList.add('visible');
+  document.getElementById('report-actions').style.display = 'flex';
+  const pb = document.getElementById('pdf-btn');
+  pb.style.display = (pdfAvailable && currentReportId) ? 'flex' : 'none';
+  document.getElementById('report-output').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function fmt(text, id) {
+  if (!text) return '<span class="na-tag">NOT AVAILABLE</span>';
+  if (id === 'severity' && text.includes('|')) {
+    const rows = text.split('\n').filter(l=>l.includes('|'));
+    if (rows.length) {
+      let t = '<table><thead><tr><th>Issue</th><th>Severity</th><th>Reasoning</th></tr></thead><tbody>';
+      rows.forEach(row=>{
+        const c = row.split('|').map(x=>x.trim()).filter(Boolean);
+        if (c.length >= 2) {
+          const s = c[1]||'';
+          const cls = /high/i.test(s)?'sev-high':/medium/i.test(s)?'sev-medium':'sev-low';
+          t += `<tr><td>${esc(c[0])}</td><td><span class="${cls}">${esc(s)}</span></td><td>${esc(c[2]||'')}</td></tr>`;
+        }
+      });
+      return t + '</tbody></table>';
+    }
+  }
+  let h = esc(text);
+  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/\bHIGH\b/g,   '<span class="sev-high">HIGH</span>');
+  h = h.replace(/\bMEDIUM\b/g, '<span class="sev-medium">MEDIUM</span>');
+  h = h.replace(/\bLOW\b/g,    '<span class="sev-low">LOW</span>');
+  h = h.replace(/Not Available/gi, '<span class="na-tag">NOT AVAILABLE</span>');
+  const lines = text.split('\n');
+  if (lines.some(l=>/^\d+\.\s/.test(l))) {
+    const items = lines.filter(l=>/^\d+\.\s/.test(l));
+    if (items.length > 1)
+      return '<ol>' + items.map(l=>`<li>${esc(l.replace(/^\d+\.\s/,''))}</li>`).join('') + '</ol>';
+  }
+  return h.split('\n\n').filter(p=>p.trim()).map(p=>`<p>${p.replace(/\n/g,'<br>')}</p>`).join('');
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function downloadPDF(e) {
+  e.preventDefault();
+  if (!currentReportId) return;
+  const a = document.getElementById('pdf-btn');
+  a.textContent = '⏳ Generating...';
+  try {
+    const r = await fetch(`${API}/download-pdf/${currentReportId}`);
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = `DDR_Report_${currentReportId}.pdf`; link.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { alert(`PDF failed: ${e.message}`); }
+  a.textContent = '⬇ Download PDF';
+}
+
+function openLightbox(src) { document.getElementById('lb-img').src=src; document.getElementById('lightbox').classList.add('open'); }
+function closeLightbox()   { document.getElementById('lightbox').classList.remove('open'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeLightbox(); });
+
+function copyText() {
+  navigator.clipboard.writeText(document.getElementById('rep-body').innerText)
+    .then(()=>alert('Copied!'));
+}
+
+function resetApp() {
+  files.inspection=null; files.thermal=null; currentReportId=null;
+  ['inspection','thermal'].forEach(t=>{
+    document.getElementById(`file-${t}`).value='';
+    document.getElementById(`name-${t}`).textContent='';
+    document.getElementById(`card-${t}`).classList.remove('has-file');
+  });
+  document.getElementById('report-output').classList.remove('visible');
+  document.getElementById('report-actions').style.display='none';
+  document.getElementById('rep-body').innerHTML='';
+  document.getElementById('status-bar').className='status-bar';
+  document.getElementById('btn-text').textContent='Generate DDR Report';
+  document.getElementById('btn-icon').textContent='⚡';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>
